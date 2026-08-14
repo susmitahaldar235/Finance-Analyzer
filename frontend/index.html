@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Personal Finance Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#F7F5F0;
+    --paper-raised:#FFFFFF;
+    --ink:#1C2321;
+    --ink-soft:#5A6058;
+    --rule:#DAD4C6;
+    --ledger-green:#2F5233;
+    --ledger-green-soft:#E4ECE4;
+    --amber:#B8722B;
+    --amber-soft:#F5E9DA;
+    --red-flag:#A6402F;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 24px 80px;}
+
+  /* header / masthead */
+  .masthead{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:18px;margin-bottom:32px;
+  }
+  .masthead h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:34px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .masthead .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .status-pill{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:5px 10px;
+    border-radius:20px;
+    border:1px solid var(--rule);
+    color:var(--ink-soft);
+  }
+  .status-pill.ok{border-color:var(--ledger-green);color:var(--ledger-green);background:var(--ledger-green-soft);}
+  .status-pill.bad{border-color:var(--red-flag);color:var(--red-flag);background:#FBEAE7;}
+
+  /* upload strip */
+  .upload-strip{
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-radius:4px;
+    padding:20px 24px;
+    margin-bottom:28px;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  .upload-strip .instructions{font-size:13px;color:var(--ink-soft);flex:1;min-width:220px;}
+  input[type=file]{font-family:'Inter',sans-serif;font-size:13px;}
+  button{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    padding:10px 18px;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  button:hover{background:var(--ledger-green);}
+  button.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--rule);}
+  button.ghost:hover{background:var(--paper);color:var(--ink);}
+  #uploadMsg{font-size:12px;font-family:'IBM Plex Mono',monospace;margin-left:8px;}
+
+  /* section labels */
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--ledger-green);
+    margin:0 0 14px 0;
+    display:flex;align-items:center;gap:10px;
+  }
+  .section-label::after{content:"";flex:1;height:1px;background:var(--rule);}
+
+  /* grid layout */
+  .grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:24px;margin-bottom:36px;}
+  @media(max-width:760px){.grid{grid-template-columns:1fr;}}
+  .card{
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-radius:4px;
+    padding:22px;
+  }
+
+  /* category ledger rows */
+  .cat-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:9px 0;border-bottom:1px dashed var(--rule);
+    font-size:14px;
+  }
+  .cat-row:last-child{border-bottom:none;}
+  .cat-name{font-weight:500;}
+  .cat-amount{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+  .change{font-family:'IBM Plex Mono',monospace;font-size:12px;margin-left:8px;}
+  .change.up{color:var(--red-flag);}
+  .change.down{color:var(--ledger-green);}
+
+  /* recurring / anomaly lists */
+  .flag-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 12px;margin-bottom:8px;
+    background:var(--amber-soft);border-radius:3px;font-size:13px;
+  }
+  .flag-item .name{font-weight:600;}
+  .flag-item .meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
+  .flag-item.anomaly{background:#FBEAE7;}
+
+  /* summary text box */
+  .summary-box{
+    font-family:'Fraunces',serif;
+    font-size:16px;
+    line-height:1.65;
+    color:var(--ink);
+    min-height:60px;
+  }
+  .summary-box .cursor{opacity:0.4;}
+
+  /* chat / agent */
+  .chat-log{max-height:340px;overflow-y:auto;margin-bottom:14px;}
+  .chat-msg{margin-bottom:14px;font-size:14px;line-height:1.55;}
+  .chat-msg .who{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;text-transform:uppercase;letter-spacing:0.08em;
+    color:var(--ink-soft);margin-bottom:3px;
+  }
+  .chat-msg.user .who{color:var(--ledger-green);}
+  .chat-msg .tools-used{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);
+    margin-top:6px;padding-top:6px;border-top:1px dotted var(--rule);
+  }
+  .chat-input-row{display:flex;gap:8px;}
+  .chat-input-row input{
+    flex:1;padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;
+    border:1px solid var(--rule);border-radius:3px;
+  }
+  .suggestions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .suggestions button{background:transparent;color:var(--ink-soft);border:1px solid var(--rule);font-size:11px;padding:6px 10px;text-transform:none;letter-spacing:0;}
+  .suggestions button:hover{background:var(--ledger-green-soft);color:var(--ledger-green);border-color:var(--ledger-green);}
+
+  .empty-state{
+    text-align:center;padding:60px 20px;color:var(--ink-soft);
+    font-family:'Fraunces',serif;font-size:18px;
+  }
+  canvas{max-height:280px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <h1>Ledger</h1>
+      <div class="tag">Local-first personal finance analyzer</div>
+    </div>
+    <div id="statusPill" class="status-pill">checking backend…</div>
+  </div>
+
+  <div class="upload-strip">
+    <div class="instructions">Upload a CSV bank/card statement (columns: date, description, amount). Everything runs locally — nothing leaves this machine.</div>
+    <input type="file" id="fileInput" accept=".csv">
+    <button onclick="uploadFile()">Upload</button>
+    <button class="ghost" onclick="resetData()">Reset data</button>
+    <span id="uploadMsg"></span>
+  </div>
+
+  <div id="mainContent">
+    <div class="empty-state">No data yet — upload a statement to get started.</div>
+  </div>
+
+</div>
+
+<script>
+const API = "http://127.0.0.1:7864";
+
+async function checkHealth(){
+  const pill = document.getElementById("statusPill");
+  try{
+    const res = await fetch(`${API}/health`);
+    const data = await res.json();
+    if(data.ollama_reachable){
+      pill.textContent = "● model online";
+      pill.className = "status-pill ok";
+    } else {
+      pill.textContent = "● model offline — run ollama serve";
+      pill.className = "status-pill bad";
+    }
+  }catch(e){
+    pill.textContent = "● backend not running";
+    pill.className = "status-pill bad";
+  }
+}
+
+async function uploadFile(){
+  const input = document.getElementById("fileInput");
+  const msg = document.getElementById("uploadMsg");
+  if(!input.files.length){ msg.textContent = "Choose a file first."; return; }
+  const formData = new FormData();
+  formData.append("file", input.files[0]);
+  msg.textContent = "Uploading…";
+  try{
+    const res = await fetch(`${API}/upload`, { method:"POST", body:formData });
+    const data = await res.json();
+    if(!res.ok){ msg.textContent = "Error: " + (data.detail || "upload failed"); return; }
+    msg.textContent = `Added ${data.inserted} transactions.` + (data.warnings.length ? ` (${data.warnings.length} rows skipped)` : "");
+    if(data.agent_trace && data.agent_trace.length){
+      msg.textContent += `  ·  agents run: ${data.agent_trace.join(" → ")}`;
+    }
+    loadOverview();
+  }catch(e){
+    msg.textContent = "Could not reach backend at " + API;
+  }
+}
+
+async function resetData(){
+  if(!confirm("Clear all stored transaction data?")) return;
+  await fetch(`${API}/reset`, { method:"POST" });
+  document.getElementById("mainContent").innerHTML = '<div class="empty-state">No data yet — upload a statement to get started.</div>';
+}
+
+function fmt(n){
+  return "₹" + Number(n).toLocaleString("en-IN", {maximumFractionDigits:0});
+}
+
+async function loadOverview(){
+  const res = await fetch(`${API}/overview`);
+  const data = await res.json();
+  if(!data.months || !data.months.length){
+    document.getElementById("mainContent").innerHTML = '<div class="empty-state">No data yet — upload a statement to get started.</div>';
+    return;
+  }
+  renderDashboard(data);
+  streamSummary(data.latest_month);
+}
+
+function renderDashboard(data){
+  const main = document.getElementById("mainContent");
+  const mom = data.month_over_month;
+
+  let catRows = "";
+  for(const [cat, amt] of Object.entries(data.category_totals)){
+    const change = mom.by_category && mom.by_category[cat];
+    let changeHtml = "";
+    if(change){
+      const cls = change.change_pct > 0 ? "up" : (change.change_pct < 0 ? "down" : "");
+      const sign = change.change_pct > 0 ? "+" : "";
+      changeHtml = `<span class="change ${cls}">${sign}${change.change_pct}%</span>`;
+    }
+    catRows += `<div class="cat-row"><span class="cat-name">${cat}</span><span>${changeHtml}<span class="cat-amount">${fmt(amt)}</span></span></div>`;
+  }
+
+  let recurringHtml = data.recurring_charges.slice(0,6).map(r =>
+    `<div class="flag-item"><div><div class="name">${r.merchant}</div><div class="meta">${r.category} · ${r.occurrence_count} months</div></div><div class="cat-amount">${fmt(r.average_amount)}/mo</div></div>`
+  ).join("") || '<div class="meta">No recurring charges detected yet.</div>';
+
+  let anomalyHtml = data.anomalies.map(a =>
+    `<div class="flag-item anomaly"><div><div class="name">${a.category}</div><div class="meta">${a.direction} historical avg of ${fmt(a.historical_average)}</div></div><div class="cat-amount">${fmt(a.current_amount)}</div></div>`
+  ).join("") || '<div class="meta">Nothing unusual this month.</div>';
+
+  main.innerHTML = `
+    <div class="grid">
+      <div class="card">
+        <div class="section-label">Spend by category — ${data.latest_month}</div>
+        <canvas id="catChart"></canvas>
+      </div>
+      <div class="card">
+        <div class="section-label">Category ledger</div>
+        ${catRows}
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="section-label">Recurring charges</div>
+        ${recurringHtml}
+      </div>
+      <div class="card">
+        <div class="section-label">Anomalies this month</div>
+        ${anomalyHtml}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="section-label">Summary</div>
+      <div class="summary-box" id="summaryBox"><span class="cursor">Generating summary…</span></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Ask about your spending</div>
+      <div class="chat-log" id="chatLog"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="e.g. why did I spend more this month?" onkeydown="if(event.key==='Enter') sendQuestion()">
+        <button onclick="sendQuestion()">Ask</button>
+      </div>
+      <div class="suggestions">
+        <button onclick="quickAsk('Why did I spend more this month?')">Why more this month?</button>
+        <button onclick="quickAsk('What subscriptions am I paying for?')">My subscriptions?</button>
+        <button onclick="quickAsk('Is anything unusual in my spending?')">Anything unusual?</button>
+      </div>
+    </div>
+  `;
+
+  new Chart(document.getElementById("catChart"), {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(data.category_totals),
+      datasets: [{
+        data: Object.values(data.category_totals),
+        backgroundColor: ["#2F5233","#B8722B","#5A6058","#A6402F","#8C9A8C","#D8B26A","#4A6B4F","#C99A6B","#6E7A6E","#9C6B4F"],
+        borderColor: "#F7F5F0",
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      plugins: { legend: { position: "bottom", labels: { font: { family: "'IBM Plex Mono'", size: 10 } } } }
+    }
+  });
+}
+
+async function streamSummary(month){
+  const box = document.getElementById("summaryBox");
+  box.innerHTML = "";
+  try{
+    const res = await fetch(`${API}/summary/${month}/stream`);
+    if(!res.ok){ box.textContent = "Could not generate summary — check the model is running."; return; }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let text = "";
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      text += decoder.decode(value, {stream:true});
+      box.innerHTML = text + '<span class="cursor">▊</span>';
+    }
+    box.innerHTML = text;
+  }catch(e){
+    box.textContent = "Could not reach the summary endpoint.";
+  }
+}
+
+function quickAsk(q){
+  document.getElementById("chatInput").value = q;
+  sendQuestion();
+}
+
+async function sendQuestion(){
+  const input = document.getElementById("chatInput");
+  const q = input.value.trim();
+  if(!q) return;
+  const log = document.getElementById("chatLog");
+
+  log.innerHTML += `<div class="chat-msg user"><div class="who">You</div>${q}</div>`;
+  input.value = "";
+  const thinkingId = "thinking-" + Date.now();
+  log.innerHTML += `<div class="chat-msg" id="${thinkingId}"><div class="who">Agent</div>Thinking…</div>`;
+  log.scrollTop = log.scrollHeight;
+
+  try{
+    const res = await fetch(`${API}/ask`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({question:q})
+    });
+    const data = await res.json();
+    const toolsHtml = data.tool_calls_made && data.tool_calls_made.length
+      ? `<div class="tools-used">tools called: ${data.tool_calls_made.map(t=>t.tool).join(", ")}</div>`
+      : "";
+    document.getElementById(thinkingId).innerHTML = `<div class="who">Agent</div>${data.answer || "No answer returned."}${toolsHtml}`;
+  }catch(e){
+    document.getElementById(thinkingId).innerHTML = `<div class="who">Agent</div>Could not reach the backend.`;
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+checkHealth();
+loadOverview();
+setInterval(checkHealth, 15000);
+</script>
+</body>
+</html>

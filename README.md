@@ -98,9 +98,6 @@ finance-analyzer/
 │   └── requirements.txt
 ├── frontend/
 │   └── index.html                 upload UI + dashboard + chat, single file, no build step
-├── sample_data/
-│   ├── sample_statement.csv        3 months of realistic sample transactions
-│   └── sample_multicurrency.csv    sample with USD/EUR transactions, for testing currency conversion
 └── README.md                     (this file)
 ```
 
